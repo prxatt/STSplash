@@ -43,13 +43,21 @@ function startLanguageCycle() {
 // Start the cycle
 startLanguageCycle();
 
-// Restart on click
-surfaceText.addEventListener('click', () => {
+// Enhanced restart function for both click and touch
+function restartLanguageCycle() {
   clearInterval(languageCycle);
   index = 0;
   isAnimating = true;
   surfaceText.textContent = languages[0];
   startLanguageCycle();
+}
+
+// Enhanced click/touch handlers for Surface Tension text
+surfaceText.addEventListener('click', restartLanguageCycle);
+surfaceText.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  restartLanguageCycle();
+  createTouchRipple(e.touches[0].clientX, e.touches[0].clientY);
 });
 
 // ⭐️ Audio Control - Enhanced with multiple fallbacks
@@ -141,55 +149,129 @@ document.addEventListener('touchstart', attemptAutoPlay, { once: true });
 document.addEventListener('keydown', attemptAutoPlay, { once: true });
 document.addEventListener('mousemove', attemptAutoPlay, { once: true });
 
-// ⭐️ Enhanced Cursor Trail with smoother movement
+// ⭐️ Enhanced Cursor Trail with smoother movement and sphere interaction
 const trail = document.getElementById("cursor-trail");
 const trailElements = [];
-const maxTrailLength = 15;
+const sphereTrailElements = [];
+const maxTrailLength = 20;
+const maxSphereTrailLength = 15;
 
-// Create trail elements
+// Create cursor trail elements
 for (let i = 0; i < maxTrailLength; i++) {
   const trailElement = document.createElement('div');
   trailElement.className = 'cursor-trail-element';
-  trailElement.style.opacity = (1 - i / maxTrailLength) * 0.7;
-  trailElement.style.transform = `scale(${1 - i / maxTrailLength})`;
+  trailElement.style.opacity = (1 - i / maxTrailLength) * 0.8;
+  trailElement.style.transform = `scale(${1 - i / maxTrailLength * 0.6})`;
   document.body.appendChild(trailElement);
   trailElements.push(trailElement);
 }
 
+// Create sphere interaction trail elements
+for (let i = 0; i < maxSphereTrailLength; i++) {
+  const sphereTrail = document.createElement('div');
+  sphereTrail.className = 'sphere-trail';
+  sphereTrail.style.opacity = (1 - i / maxSphereTrailLength) * 0.7;
+  sphereTrail.style.transform = `scale(${1 - i / maxSphereTrailLength * 0.5}) translate(-50%, -50%)`;
+  document.body.appendChild(sphereTrail);
+  sphereTrailElements.push(sphereTrail);
+}
+
 let mouseX = 0, mouseY = 0;
+let lastMouseX = 0, lastMouseY = 0;
 const trailPositions = [];
+const sphereTrailPositions = [];
+let isOverPointCloud = false;
+let touchTrailElements = [];
 
 function updateCursor(x, y) {
   mouseX = x;
   mouseY = y;
   
-  // Update main cursor
+  // Calculate movement speed for trail intensity
+  const speed = Math.sqrt((x - lastMouseX) ** 2 + (y - lastMouseY) ** 2);
+  const intensity = Math.min(speed / 10, 1);
+  
+  // Update main cursor with dynamic sizing based on movement
   trail.style.left = `${mouseX}px`;
   trail.style.top = `${mouseY}px`;
+  trail.style.transform = `translate(-50%, -50%) scale(${0.8 + intensity * 0.4})`;
   
   // Store position for smooth trail
-  trailPositions.unshift({ x: mouseX, y: mouseY });
+  trailPositions.unshift({ x: mouseX, y: mouseY, intensity });
   if (trailPositions.length > maxTrailLength) {
     trailPositions.pop();
   }
   
-  // Update trail elements with smooth interpolation
+  // Update cursor trail elements with smooth interpolation
   trailElements.forEach((element, i) => {
     if (trailPositions[i + 1]) {
       element.style.left = `${trailPositions[i + 1].x}px`;
       element.style.top = `${trailPositions[i + 1].y}px`;
+      element.style.opacity = (1 - i / maxTrailLength) * 0.8 * (trailPositions[i + 1].intensity + 0.3);
     }
   });
+  
+  // Handle sphere trail when over point cloud
+  if (isOverPointCloud) {
+    sphereTrailPositions.unshift({ x: mouseX, y: mouseY });
+    if (sphereTrailPositions.length > maxSphereTrailLength) {
+      sphereTrailPositions.pop();
+    }
+    
+    sphereTrailElements.forEach((element, i) => {
+      if (sphereTrailPositions[i]) {
+        element.style.left = `${sphereTrailPositions[i].x}px`;
+        element.style.top = `${sphereTrailPositions[i].y}px`;
+        element.style.opacity = (1 - i / maxSphereTrailLength) * 0.9;
+        element.style.display = 'block';
+      }
+    });
+  } else {
+    // Fade out sphere trails when not over point cloud
+    sphereTrailElements.forEach(element => {
+      element.style.opacity = '0';
+      setTimeout(() => {
+        if (element.style.opacity === '0') {
+          element.style.display = 'none';
+        }
+      }, 300);
+    });
+  }
+  
+  lastMouseX = x;
+  lastMouseY = y;
 }
 
 document.addEventListener("mousemove", (e) => {
   updateCursor(e.clientX, e.clientY);
 });
 
-// Touch support
+// Enhanced touch support with trail effects
+function createTouchTrail(x, y) {
+  const touchTrail = document.createElement('div');
+  touchTrail.className = 'cursor-trail-element';
+  touchTrail.style.left = `${x}px`;
+  touchTrail.style.top = `${y}px`;
+  touchTrail.style.opacity = '0.8';
+  touchTrail.style.background = 'radial-gradient(circle, #ff6b6b 0%, rgba(255, 107, 107, 0.4) 60%, transparent)';
+  document.body.appendChild(touchTrail);
+  touchTrailElements.push(touchTrail);
+  
+  // Animate and remove
+  setTimeout(() => {
+    touchTrail.style.opacity = '0';
+    touchTrail.style.transform = 'translate(-50%, -50%) scale(2)';
+    setTimeout(() => {
+      document.body.removeChild(touchTrail);
+      touchTrailElements = touchTrailElements.filter(el => el !== touchTrail);
+    }, 300);
+  }, 100);
+}
+
 document.addEventListener("touchmove", (e) => {
   e.preventDefault();
   const touch = e.touches[0];
+  createTouchTrail(touch.clientX, touch.clientY);
   updateCursor(touch.clientX, touch.clientY);
 });
 
@@ -208,50 +290,75 @@ function createRipple(x, y, size = 1) {
   // Remove ripple after animation
   setTimeout(() => {
     ripple.remove();
-  }, 1000);
+  }, 1200);
 }
 
-// Create ripples on mouse movement (reduced frequency)
+function createTouchRipple(x, y, size = 1) {
+  const ripple = document.createElement('div');
+  ripple.className = 'touch-ripple';
+  ripple.style.left = `${x}px`;
+  ripple.style.top = `${y}px`;
+  ripple.style.width = `${25 * size}px`;
+  ripple.style.height = `${25 * size}px`;
+  rippleContainer.appendChild(ripple);
+  
+  // Create touch feedback circle
+  const feedback = document.createElement('div');
+  feedback.className = 'touch-feedback';
+  feedback.style.left = `${x}px`;
+  feedback.style.top = `${y}px`;
+  document.body.appendChild(feedback);
+  
+  // Remove elements after animation
+  setTimeout(() => {
+    ripple.remove();
+    feedback.remove();
+  }, 800);
+}
+
+// Create ripples on mouse movement (reduced frequency for performance)
 document.addEventListener('mousemove', (e) => {
-  if (Math.random() < 0.05) { // 5% chance for smoother performance
-    createRipple(e.clientX, e.clientY, 0.8);
+  if (Math.random() < 0.03) { // 3% chance for smoother performance
+    createRipple(e.clientX, e.clientY, 0.6);
   }
 });
 
-// Touch ripples
+// Enhanced touch ripples
 document.addEventListener('touchstart', (e) => {
   const touch = e.touches[0];
-  createRipple(touch.clientX, touch.clientY, 1.2);
+  createTouchRipple(touch.clientX, touch.clientY, 1.2);
 });
 
 // ⭐️ Subtext interaction for "12525" hidden text
 const subtext = document.getElementById('subtext');
 let subtextTimeout;
 
-// Mouse events
-subtext.addEventListener('mouseenter', () => {
-  subtext.classList.add('show-hidden');
-});
+if (subtext) {
+  // Mouse events
+  subtext.addEventListener('mouseenter', () => {
+    subtext.classList.add('show-hidden');
+  });
 
-subtext.addEventListener('mouseleave', () => {
-  subtext.classList.remove('show-hidden');
-});
-
-// Touch and hold for mobile
-subtext.addEventListener('touchstart', (e) => {
-  e.preventDefault();
-  subtext.classList.add('show-hidden');
-  subtextTimeout = setTimeout(() => {
+  subtext.addEventListener('mouseleave', () => {
     subtext.classList.remove('show-hidden');
-  }, 3000);
-});
+  });
 
-subtext.addEventListener('touchend', () => {
-  clearTimeout(subtextTimeout);
-  setTimeout(() => {
-    subtext.classList.remove('show-hidden');
-  }, 500);
-});
+  // Touch and hold for mobile
+  subtext.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    subtext.classList.add('show-hidden');
+    subtextTimeout = setTimeout(() => {
+      subtext.classList.remove('show-hidden');
+    }, 3000);
+  });
+
+  subtext.addEventListener('touchend', () => {
+    clearTimeout(subtextTimeout);
+    setTimeout(() => {
+      subtext.classList.remove('show-hidden');
+    }, 500);
+  });
+}
 
 // ⭐️ Enhanced Three.js Point Cloud Background - Improved Performance
 let scene, camera, renderer, pointCloud;
@@ -262,10 +369,16 @@ let dragStart = { x: 0, y: 0 };
 let rotation = { x: 0, y: 0 };
 let targetRotation = { x: 0, y: 0 };
 
-// Touch variables
+// Touch variables for enhanced interaction
 let touches = [];
 let lastTouchDistance = 0;
 let cameraDistance = 100;
+let isRotating = false;
+let rotationVelocity = { x: 0, y: 0 };
+
+// Raycaster for sphere interaction detection
+let raycaster = new THREE.Raycaster();
+let intersectedObjects = [];
 
 function initThreeJS() {
   // Scene setup
@@ -282,6 +395,9 @@ function initThreeJS() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   camera.position.z = cameraDistance;
 
+  // Initialize raycaster
+  raycaster = new THREE.Raycaster();
+
   // Create enhanced sphere geometry point cloud
   const particleCount = window.innerWidth < 768 ? 4000 : 8000; // Optimized count
   const sphereGeometry = new THREE.SphereGeometry(0.15, 8, 6); // Optimized sphere detail
@@ -290,13 +406,16 @@ function initThreeJS() {
   const sphereMaterial = new THREE.ShaderMaterial({
     uniforms: {
       time: { value: 0 },
-      mouse: { value: new THREE.Vector2() }
+      mouse: { value: new THREE.Vector2() },
+      hovering: { value: 0.0 }
     },
     vertexShader: `
       varying vec3 vColor;
       varying vec3 vPosition;
+      varying float vHover;
       uniform float time;
       uniform vec2 mouse;
+      uniform float hovering;
       
       void main() {
         vColor = color;
@@ -308,9 +427,12 @@ function initThreeJS() {
         pos.y += cos(time + position.x * 0.01) * 1.5;
         pos.z += sin(time * 0.5 + position.x * 0.005 + position.y * 0.005) * 1.0;
         
-        // Mouse interaction
+        // Mouse interaction for hover effects
         vec2 mouseInfluence = mouse * 10.0;
         pos.xy += mouseInfluence * 0.1;
+        
+        // Hover scaling effect
+        vHover = hovering;
         
         vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
         gl_Position = projectionMatrix * mvPosition;
@@ -319,11 +441,19 @@ function initThreeJS() {
     fragmentShader: `
       varying vec3 vColor;
       varying vec3 vPosition;
+      varying float vHover;
       
       void main() {
-        // Dynamic color based on position and time
+        // Dynamic color based on position and hover state
         vec3 color = vColor;
         float intensity = 0.8 + sin(vPosition.x * 0.01 + vPosition.y * 0.01) * 0.2;
+        
+        // Enhance color when hovering
+        if (vHover > 0.1) {
+          color = mix(color, vec3(1.0, 1.0, 1.0), vHover * 0.3);
+          intensity += vHover * 0.4;
+        }
+        
         gl_FragColor = vec4(color * intensity, 0.8);
       }
     `,
@@ -393,9 +523,17 @@ function animate() {
   time += 0.01;
 
   if (pointCloud) {
-    // Smooth rotation interpolation
-    rotation.x += (targetRotation.x - rotation.x) * 0.05;
-    rotation.y += (targetRotation.y - rotation.y) * 0.05;
+    // Smooth rotation interpolation with momentum
+    rotation.x += (targetRotation.x - rotation.x) * 0.08;
+    rotation.y += (targetRotation.y - rotation.y) * 0.08;
+    
+    // Add rotation velocity for smooth momentum
+    rotation.x += rotationVelocity.x;
+    rotation.y += rotationVelocity.y;
+    
+    // Apply damping to velocity
+    rotationVelocity.x *= 0.95;
+    rotationVelocity.y *= 0.95;
 
     // Enhanced rotation with mouse influence and organic movement
     pointCloud.rotation.x = rotation.x + Math.sin(time * 0.3) * 0.1 + mouse.y * 0.0001;
@@ -406,6 +544,7 @@ function animate() {
     if (pointCloud.material.uniforms) {
       pointCloud.material.uniforms.time.value = time;
       pointCloud.material.uniforms.mouse.value.set(mouse.x, mouse.y);
+      pointCloud.material.uniforms.hovering.value = isOverPointCloud ? 1.0 : 0.0;
     }
 
     // Enhanced pulsing effect with multiple harmonics
@@ -422,9 +561,11 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-// Enhanced Mouse/Touch Controls
+// Enhanced Mouse/Touch Controls with precise point cloud interaction
 function onPointerStart(e) {
   isDragging = true;
+  isRotating = true;
+  
   if (e.type === 'mousedown') {
     dragStart.x = e.clientX;
     dragStart.y = e.clientY;
@@ -444,21 +585,41 @@ function onPointerStart(e) {
 
 function onPointerMove(e) {
   if (e.type === 'mousemove') {
+    // Update mouse coordinates for shader and raycasting
     mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    
+    // Detect if hovering over point cloud
+    if (pointCloud) {
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObject(pointCloud);
+      isOverPointCloud = intersects.length > 0;
+      
+      if (isOverPointCloud) {
+        document.body.style.cursor = 'grab';
+      } else {
+        document.body.style.cursor = 'none';
+      }
+    }
 
     if (isDragging) {
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
       
-      targetRotation.y += deltaX * 0.008;
-      targetRotation.x += deltaY * 0.008;
+      // Enhanced rotation sensitivity
+      const sensitivity = 0.01;
+      targetRotation.y += deltaX * sensitivity;
+      targetRotation.x += deltaY * sensitivity;
+      
+      // Add velocity for momentum
+      rotationVelocity.y += deltaX * sensitivity * 0.1;
+      rotationVelocity.x += deltaY * sensitivity * 0.1;
       
       dragStart.x = e.clientX;
       dragStart.y = e.clientY;
 
-      // Create drag ripples
-      if (Math.random() < 0.3) {
+      // Create drag ripples when interacting with point cloud
+      if (isOverPointCloud && Math.random() < 0.3) {
         createRipple(e.clientX, e.clientY, 0.6);
       }
     }
@@ -471,16 +632,21 @@ function onPointerMove(e) {
       const deltaX = touches[0].clientX - dragStart.x;
       const deltaY = touches[0].clientY - dragStart.y;
       
-      targetRotation.y += deltaX * 0.008;
-      targetRotation.x += deltaY * 0.008;
+      const sensitivity = 0.012;
+      targetRotation.y += deltaX * sensitivity;
+      targetRotation.x += deltaY * sensitivity;
+      
+      // Add velocity for momentum
+      rotationVelocity.y += deltaX * sensitivity * 0.1;
+      rotationVelocity.x += deltaY * sensitivity * 0.1;
       
       dragStart.x = touches[0].clientX;
       dragStart.y = touches[0].clientY;
 
       // Create touch ripples
-      createRipple(touches[0].clientX, touches[0].clientY, 0.9);
+      createTouchRipple(touches[0].clientX, touches[0].clientY, 0.9);
     } else if (touches.length === 2) {
-      // Two finger pinch/zoom
+      // Two finger pinch/zoom and rotation
       const currentDistance = Math.hypot(
         touches[0].clientX - touches[1].clientX,
         touches[0].clientY - touches[1].clientY
@@ -488,18 +654,37 @@ function onPointerMove(e) {
       
       if (lastTouchDistance > 0) {
         const deltaDistance = currentDistance - lastTouchDistance;
-        cameraDistance = Math.max(50, Math.min(200, cameraDistance - deltaDistance * 0.3));
+        cameraDistance = Math.max(50, Math.min(300, cameraDistance - deltaDistance * 0.3));
       }
       
       lastTouchDistance = currentDistance;
+      
+      // Two finger rotation
+      const centerX = (touches[0].clientX + touches[1].clientX) / 2;
+      const centerY = (touches[0].clientY + touches[1].clientY) / 2;
+      const angle = Math.atan2(
+        touches[1].clientY - touches[0].clientY,
+        touches[1].clientX - touches[0].clientX
+      );
+      
+      if (this.lastAngle !== undefined) {
+        const deltaAngle = angle - this.lastAngle;
+        targetRotation.z += deltaAngle * 0.5;
+      }
+      this.lastAngle = angle;
     }
   }
 }
 
 function onPointerEnd(e) {
   isDragging = false;
+  isRotating = false;
   touches = [];
   lastTouchDistance = 0;
+  this.lastAngle = undefined;
+  
+  // Reset cursor
+  document.body.style.cursor = 'none';
 }
 
 // Mouse events
@@ -512,11 +697,17 @@ document.addEventListener('touchstart', onPointerStart, { passive: false });
 document.addEventListener('touchmove', onPointerMove, { passive: false });
 document.addEventListener('touchend', onPointerEnd);
 
-// Wheel zoom
+// Enhanced wheel zoom with smooth acceleration
 document.addEventListener('wheel', (e) => {
   e.preventDefault();
   const delta = e.deltaY > 0 ? 5 : -5;
-  cameraDistance = Math.max(30, Math.min(300, cameraDistance + delta));
+  const zoomSpeed = Math.abs(e.deltaY) > 100 ? 2 : 1; // Faster zoom for larger wheel movements
+  cameraDistance = Math.max(30, Math.min(300, cameraDistance + delta * zoomSpeed));
+  
+  // Create zoom ripple effect
+  if (Math.random() < 0.5) {
+    createRipple(e.clientX, e.clientY, 0.4);
+  }
 }, { passive: false });
 
 // Window resize handler
