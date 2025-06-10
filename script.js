@@ -366,4 +366,201 @@ function initThreeJS() {
     
     // Enhanced color variation
     const color = new THREE.Color();
-    const hue =
+    const hue = 0.5 + Math.sin(i * 0.1) * 0.3; // Dynamic hue based on index
+    const saturation = 0.8 + Math.random() * 0.2;
+    const lightness = 0.4 + Math.random() * 0.4;
+    color.setHSL(hue, saturation, lightness);
+    colors.push(color.r, color.g, color.b);
+  }
+  
+  // Set colors and update matrices
+  instancedMesh.instanceMatrix.needsUpdate = true;
+  const colorAttribute = new THREE.InstancedBufferAttribute(new Float32Array(colors), 3);
+  instancedMesh.geometry.setAttribute('color', colorAttribute);
+  
+  pointCloud = instancedMesh;
+  scene.add(pointCloud);
+
+  // Add subtle ambient lighting
+  const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+  scene.add(ambientLight);
+  
+  console.log('✅ Three.js initialized with', particleCount, 'particles');
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  time += 0.01;
+
+  if (pointCloud) {
+    // Smooth rotation interpolation
+    rotation.x += (targetRotation.x - rotation.x) * 0.05;
+    rotation.y += (targetRotation.y - rotation.y) * 0.05;
+
+    // Enhanced rotation with mouse influence and organic movement
+    pointCloud.rotation.x = rotation.x + Math.sin(time * 0.3) * 0.1 + mouse.y * 0.0001;
+    pointCloud.rotation.y = rotation.y + Math.cos(time * 0.2) * 0.1 + mouse.x * 0.0001;
+    pointCloud.rotation.z += 0.0003;
+
+    // Update shader uniforms
+    if (pointCloud.material.uniforms) {
+      pointCloud.material.uniforms.time.value = time;
+      pointCloud.material.uniforms.mouse.value.set(mouse.x, mouse.y);
+    }
+
+    // Enhanced pulsing effect with multiple harmonics
+    const scale = 1 + Math.sin(time * 1.5) * 0.02 + Math.cos(time * 2.3) * 0.01;
+    pointCloud.scale.set(scale, scale, scale);
+
+    // Dynamic camera movement
+    camera.position.x = Math.sin(time * 0.2) * 3;
+    camera.position.y = Math.cos(time * 0.15) * 2;
+    camera.position.z = cameraDistance + Math.sin(time * 0.5) * 5;
+    camera.lookAt(scene.position);
+  }
+
+  renderer.render(scene, camera);
+}
+
+// Enhanced Mouse/Touch Controls
+function onPointerStart(e) {
+  isDragging = true;
+  if (e.type === 'mousedown') {
+    dragStart.x = e.clientX;
+    dragStart.y = e.clientY;
+  } else if (e.type === 'touchstart') {
+    touches = Array.from(e.touches);
+    if (touches.length === 1) {
+      dragStart.x = touches[0].clientX;
+      dragStart.y = touches[0].clientY;
+    } else if (touches.length === 2) {
+      lastTouchDistance = Math.hypot(
+        touches[0].clientX - touches[1].clientX,
+        touches[0].clientY - touches[1].clientY
+      );
+    }
+  }
+}
+
+function onPointerMove(e) {
+  if (e.type === 'mousemove') {
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+    if (isDragging) {
+      const deltaX = e.clientX - dragStart.x;
+      const deltaY = e.clientY - dragStart.y;
+      
+      targetRotation.y += deltaX * 0.008;
+      targetRotation.x += deltaY * 0.008;
+      
+      dragStart.x = e.clientX;
+      dragStart.y = e.clientY;
+
+      // Create drag ripples
+      if (Math.random() < 0.3) {
+        createRipple(e.clientX, e.clientY, 0.6);
+      }
+    }
+  } else if (e.type === 'touchmove') {
+    e.preventDefault();
+    touches = Array.from(e.touches);
+    
+    if (touches.length === 1 && isDragging) {
+      // Single finger drag - rotate camera
+      const deltaX = touches[0].clientX - dragStart.x;
+      const deltaY = touches[0].clientY - dragStart.y;
+      
+      targetRotation.y += deltaX * 0.008;
+      targetRotation.x += deltaY * 0.008;
+      
+      dragStart.x = touches[0].clientX;
+      dragStart.y = touches[0].clientY;
+
+      // Create touch ripples
+      createRipple(touches[0].clientX, touches[0].clientY, 0.9);
+    } else if (touches.length === 2) {
+      // Two finger pinch/zoom
+      const currentDistance = Math.hypot(
+        touches[0].clientX - touches[1].clientX,
+        touches[0].clientY - touches[1].clientY
+      );
+      
+      if (lastTouchDistance > 0) {
+        const deltaDistance = currentDistance - lastTouchDistance;
+        cameraDistance = Math.max(50, Math.min(200, cameraDistance - deltaDistance * 0.3));
+      }
+      
+      lastTouchDistance = currentDistance;
+    }
+  }
+}
+
+function onPointerEnd(e) {
+  isDragging = false;
+  touches = [];
+  lastTouchDistance = 0;
+}
+
+// Mouse events
+document.addEventListener('mousedown', onPointerStart);
+document.addEventListener('mousemove', onPointerMove);
+document.addEventListener('mouseup', onPointerEnd);
+
+// Touch events
+document.addEventListener('touchstart', onPointerStart, { passive: false });
+document.addEventListener('touchmove', onPointerMove, { passive: false });
+document.addEventListener('touchend', onPointerEnd);
+
+// Wheel zoom
+document.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? 5 : -5;
+  cameraDistance = Math.max(30, Math.min(300, cameraDistance + delta));
+}, { passive: false });
+
+// Window resize handler
+window.addEventListener('resize', () => {
+  if (camera && renderer) {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+});
+
+// ⭐️ Enhanced Glitch Effect for Text
+function addGlitchEffect() {
+  const textElement = document.getElementById('surface-text');
+  if (Math.random() < 0.03) { // 3% chance for subtlety
+    textElement.style.textShadow = `
+      2px 0 #ff0000,
+      -2px 0 #00ffff,
+      0 2px #ff00ff,
+      0 -2px #ffff00
+    `;
+    setTimeout(() => {
+      textElement.style.textShadow = `
+        0 0 20px rgba(0, 255, 255, 0.8),
+        0 0 40px rgba(0, 255, 255, 0.6),
+        0 0 60px rgba(0, 255, 255, 0.4),
+        0 0 80px rgba(0, 255, 255, 0.2)
+      `;
+    }, 100);
+  }
+}
+
+// Apply glitch effect occasionally
+setInterval(addGlitchEffect, 200);
+
+// Initialize everything when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  initThreeJS();
+  animate();
+  console.log('🚀 Surface Tension fully initialized');
+});
+
+// Debug logging
+console.log('📱 Device:', window.innerWidth < 768 ? 'Mobile' : 'Desktop');
+console.log('🎮 Touch support:', 'ontouchstart' in window);
+console.log('🎵 Audio element:', music ? 'Found' : 'Missing');
+console.log('🌐 Three.js:', typeof THREE !== 'undefined' ? 'Loaded' : 'Missing');
